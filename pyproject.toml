@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "tracedump"
+version = "0.0.1"
+description = ""
+authors = ["Mic92 <dontcontactme@example.com>"]
+build = "build.py"
+
+[tool.poetry.dependencies]
+python = ">= 3.8"
+cffi = ">= 1.1.0"
+pwntools = { git = "https://github.com/hase-project/pwntools.git", rev = "51645530f281930c03936a3a1cd886e0ed481bc3" }
+
+[tool.poetry.scripts]
+tracedumpd = 'tracedump.tracedumpd.__main__:main'
+tracedumpctl = 'tracedump.tracedumpctl:main'
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
