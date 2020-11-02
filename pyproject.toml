@@ -12,7 +12,6 @@ pwntools = { git = "https://github.com/hase-project/pwntools.git", rev = "516455
 
 [tool.poetry.scripts]
 tracedumpd = 'tracedump.tracedumpd.__main__:main'
-tracedumpctl = 'tracedump.tracedumpctl:main'
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
