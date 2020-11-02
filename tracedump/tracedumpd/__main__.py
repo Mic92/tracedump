@@ -8,6 +8,12 @@ from . import DEFAULT_LOG_DIR, record_command
 def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=argv[0], description="Event-triggered processor trace dumps")
     parser.add_argument(
+        "--pid",
+        default=-1,
+        type=int,
+        help="pid to trace (this will be used instead of an program)"
+    )
+    parser.add_argument(
         "--log-dir",
         default=str(DEFAULT_LOG_DIR),
         type=str,

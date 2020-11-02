@@ -90,7 +90,7 @@ exec 2>&1
 
 export PYTHONPATH={pythonpath}
 
-exec {python} -m hase.record.coredump_handler {fifo_path} {core_file} {manifest_path} "$@"
+exec {python} -m tracedump.tracedumpd.coredump_handler {fifo_path} {core_file} {manifest_path} "$@"
 """
 
         script_content = script_template.format(

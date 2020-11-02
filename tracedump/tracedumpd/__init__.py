@@ -127,6 +127,7 @@ def record_other_pid(pid: int, record_paths: "RecordPaths") -> Recording:
                 break
             except KeyboardInterrupt:
                 break
+        print("dumping trace")
         coredump, trace = record.result()
     return Recording(coredump, trace, 0, None)
 
@@ -366,21 +367,15 @@ def record_command(args: argparse.Namespace) -> None:
     log_path = Path(args.log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
 
-    logging.basicConfig(filename=str(log_path.joinpath("hase.log")), level=logging.INFO)
+    logging.basicConfig(filename=str(log_path.joinpath("tracedump.log")), level=logging.INFO)
 
-    command = args.args
+    target = args.args if args.pid == -1 else args.pid
 
     with TemporaryDirectory() as tempdir:
         record(
-            target=command,
+            target=target,
             record_path=Path(tempdir),
             log_path=log_path,
             pid_file=args.pid_file,
             limit=args.limit,
         )
-
-    if args.rusage_file is not None:
-        usage = tuple(resource.getrusage(resource.RUSAGE_CHILDREN))
-        with open(args.rusage_file, "w") as usage_file:
-            usage_file.write(", ".join([str(x) for x in usage]))
-            usage_file.write("\n")
