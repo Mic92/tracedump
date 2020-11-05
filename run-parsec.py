@@ -32,7 +32,7 @@ class Command:
         if input_via_stdin:
             with open(Path(cwd).joinpath("input.template")) as f:
                 input = f.read()
-                return input.replace("NUMPROCS", str(CPU_COUNT))
+                return input.replace("NUMPROCS", self.env["NTHREADS"])
         return None
 
 
@@ -41,7 +41,12 @@ class Command:
     ) -> None:
         input = None
         cmd = interpreter
-        cmd += shlex.split(self.args)
+        args = shlex.split(self.args)
+        if args[0].endswith("x264"):
+            # https://github.com/cirosantilli/parsec-benchmark#host-x264
+            args[0] = "x264"
+            args.remove("--b-pyramid")
+        cmd += args
         input_via_stdin = False
         if cmd[-2] == "<":
             input_via_stdin = True
@@ -51,11 +56,14 @@ class Command:
         print(f"$ cd {cwd}")
         print(f"$ LD_LIBRARY_PATH={self.env['LD_LIBRARY_PATH']} {' '.join(cmd)}" + (" << EOF" if input_via_stdin else ""))
         if input:
-            print(input)
+            print(input, end="")
             print("EOF")
         if simulate:
             return
-        subprocess.run(cmd, env=self.env, check=True, cwd=cwd, input=input)
+        input_bytes = None
+        if input is not None:
+            input_bytes = input.encode("utf-8")
+        subprocess.run(cmd, env=self.env, check=True, cwd=cwd, input=input_bytes)
 
 
 @dataclass
@@ -72,9 +80,10 @@ class App:
 
     def source_env(self, path: Path) -> Dict[str, str]:
         wrapper = str(path.joinpath("inst", PLATFORM, "bin", "run.sh"))
+        cpu_count = CPU_COUNT
         script = f"""
-            export NTHREADS={CPU_COUNT}
-            export NUMPROCS={CPU_COUNT}
+            export NTHREADS={cpu_count}
+            export NUMPROCS={cpu_count}
             export INPUTSIZE=native
             export PARSECPLAT={PLATFORM}
             export PARSECDIR={ROOT}
@@ -139,7 +148,7 @@ def get_apps() -> List[App]:
     )
     assert proc.stdout is not None
     for line in proc.stdout.split("\n"):
-        match = re.match(r"\[PARSEC\] (splash2|splash2x|parsec|)\.([^ ]+)", line)
+        match = re.match(r"\[PARSEC\] (splash2x|parsec|)\.([^ ]+)", line)
         if not match:
             continue
         framework = match.group(1)
@@ -157,7 +166,7 @@ def main() -> None:
 
     for app in get_apps():
         cmd = app.command()
-        if app.name in benchmarks:
+        if app.name in benchmarks or app.framework == "splash2":
             print(f"skip {app.name}")
             continue
 
