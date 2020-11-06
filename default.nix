@@ -1,4 +1,12 @@
-with import <nixpkgs> {};
+{ pkgs ? import <nixpkgs> {}
+, python ? pkgs.python3
+, cmake ? pkgs.cmake
+, stdenv ? pkgs.stdenv
+, fetchFromGitHub ? pkgs.fetchFromGitHub
+, fetchzip ? pkgs.fetchzip
+, callPackage ? pkgs.callPackage
+}:
+
 let
   processor-trace = stdenv.mkDerivation rec {
     name = "processor-trace-${version}";
@@ -13,12 +21,15 @@ let
     cmakeFlags = ["-DCMAKE_BUILD_TYPE=RelWithDebInfo"];
     dontStrip=1;
   };
-  poetry2nix = pkgs.callPackage (pkgs.fetchzip {
+  poetry2nix = callPackage (fetchzip {
     url = "https://github.com/Mic92/poetry2nix/archive/81948c55049c5f3716d0eea1e288eaaf4e50cdbd.tar.gz";
     sha256 = "1jsn6c1y6iagrrigzl8p6yknknkxaldb5cz2r3g8ldvgq8ykwhnl";
-  }) {};
+  }) {
+    inherit pkgs;
+  };
 in poetry2nix.mkPoetryApplication {
   projectDir = ./.;
+  inherit python;
   buildInputs = [
     processor-trace
   ];
