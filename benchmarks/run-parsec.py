@@ -6,10 +6,10 @@ import os
 import json
 import shlex
 import resource
-from collections import defaultdict
+import time
 from resource import getrusage
 from pathlib import Path
-from typing import List, Dict, Optional, Any, IO
+from typing import List, Dict, Optional, Any, IO, Tuple
 import tempfile
 import multiprocessing
 from dataclasses import dataclass
@@ -78,28 +78,30 @@ class Command:
 
     def _trace_run(
         self, cmd: List[str], stdin: Optional[IO[Any]], cwd: str = "."
-    ) -> "resource._RUsage":
+    ) -> Tuple["resource._RUsage", float]:
         recording = record(
-            record_path=cwd,
-            log_path=cwd,
+            record_path=Path(cwd),
+            log_path=Path(cwd),
             target=cmd,
-            working_directory=cwd,
+            working_directory=Path(cwd),
             extra_env=self.env,
             stdin=stdin,
         )
-        return recording.rusage
+        return recording.rusage, recording.wall_time
 
     def _run(
         self, cmd: List[str], stdin: Optional[IO[Any]], cwd: str = "."
-    ) -> "resource._RUsage":
+    ) -> Tuple["resource._RUsage", float]:
+        start = time.time()
         proc = subprocess.Popen(cmd, env=self.env, cwd=cwd, stdin=stdin)
         _, exit_code, rusage = os.wait4(proc.pid, 0)
+        wall_time = time.time() - start
         assert exit_code == 0
-        return rusage
+        return rusage, wall_time
 
     def run(
         self, simulate: bool = False, cwd: str = ".", trace: bool = False
-    ) -> "resource._RUsage":
+    ) -> Tuple["resource._RUsage", float]:
         input = None
         args = shlex.split(self.args)
         if args[0].endswith("x264"):
@@ -123,10 +125,10 @@ class Command:
             print("EOF")
         if simulate:
             # dummy value
-            return getrusage(os.getpid())
+            return getrusage(os.getpid()), 0.0
         with InputPipe(input) as read_file:
             if trace:
-                return self._trace_run(cmd, cwd=Path(cwd), stdin=read_file)
+                return self._trace_run(cmd, cwd=cwd, stdin=read_file)
             else:
                 return self._run(cmd, cwd=cwd, stdin=read_file)
 
@@ -261,18 +263,19 @@ def main() -> None:
             benchmarks[app.name] = []
             for i in range(5):
                 for trace in [True, False]:
-                    usage = cmd.run(simulate=simulate, cwd=temp, trace=trace)
+                    usage, wall_time = cmd.run(simulate=simulate, cwd=temp, trace=trace)
                     usage_dict = {}
                     for field in fields:
                         usage_dict[field] = getattr(usage, field)
                     usage_dict["name"] = app.name
                     usage_dict["type"] = "trace" if trace else "normal"
+                    usage_dict["wall_time"] = wall_time
                     benchmarks[app.name].append(usage_dict)
         with open("benchmarks.json", "w") as f:
             json.dump(benchmarks, f)
 
     with open("benchmarks.csv", "w", newline="") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=["name", "type"] + fields)
+        writer = csv.DictWriter(csvfile, fieldnames=["name", "type", "wall_time"] + fields)
         writer.writeheader()
 
         for app, measurements in benchmarks.items():

@@ -37,11 +37,13 @@ class Recording:
         trace: Trace,
         exit_status: int,
         rusage: Optional[Tuple[Any, ...]] = None,
+        wall_time: Optional[float] = 0
     ) -> None:
         self.coredump = coredump
         self.trace = trace
         self.exit_status = exit_status
         self.rusage = rusage
+        self.wall_time = wall_time
         # set by the report_worker atm, should be refactored
         self.report_path = None  # type: Optional[str]
 
@@ -97,6 +99,7 @@ def record_child_pid(
         options = os.WNOHANG
 
     record = RecordProcess(pid, record_paths)
+    wall_time: Optional[float] = None
 
     with record:
         ptrace_detach(pid)
@@ -105,6 +108,8 @@ def record_child_pid(
         while True:
             pid, exit_code, rusage = os.wait4(pid, options)
             if pid != 0:
+                if timeout is None:
+                    wall_time = time.time() - start
                 break
             elif timeout is not None and time.time() - start <= 0:
                 raise TimeoutExpired(
@@ -112,7 +117,7 @@ def record_child_pid(
                 )
             time.sleep(0.10)
         coredump, trace = record.result()
-    return Recording(coredump, trace, exit_code, rusage)
+    return Recording(coredump, trace, exit_code, rusage, wall_time)
 
 
 def record_other_pid(pid: int, record_paths: "RecordPaths") -> Recording:
