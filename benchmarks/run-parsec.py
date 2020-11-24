@@ -1,19 +1,52 @@
 #!/usr/bin/env python3
 import subprocess
 import re
+import csv
 import os
 import json
 import shlex
+import resource
+from collections import defaultdict
+from resource import getrusage
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any, IO
 import tempfile
 import multiprocessing
 from dataclasses import dataclass
+from threading import Thread
+from tracedump.tracedumpd import record  # type: ignore
 
 ROOT = Path(os.path.dirname(os.path.realpath(__file__)))
 CPU_COUNT = multiprocessing.cpu_count()
 PLATFORM = "amd64-linux.gcc"
 parsecmgmt = ROOT.joinpath("bin/parsecmgmt")
+
+
+class InputPipe:
+    def __init__(self, input: Optional[str]):
+        self.input = input
+        self.read_file: Optional[IO[str]] = None
+        self.write_file: Optional[IO[str]] = None
+
+    def _feed_pipe(self):
+        if self.write_file:
+            self.write_file.write(self.input)
+            self.write_file.close()
+
+    def __enter__(self) -> Optional[IO[str]]:
+        if not self.input:
+            return None
+        read_fd, write_fd = os.pipe()
+        self.read_file = os.fdopen(read_fd)
+        self.write_file = os.fdopen(write_fd, mode="w")
+        Thread(target=self._feed_pipe).start()
+        return self.read_file
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        if self.read_file:
+            self.read_file.close()
+        if self.write_file:
+            self.write_file.close()
 
 
 @dataclass
@@ -25,23 +58,55 @@ class Command:
     def _unpack(self, cwd: str, input_via_stdin: bool) -> Optional[str]:
         if self.input_archive is None:
             return None
-        unpack_cmd = ["tar", "-C", cwd, "-vxf", str(self.input_archive)]
+
+        unpack_cmd = [
+            "tar",
+            "--no-same-owner",
+            "-C",
+            cwd,
+            "-vxf",
+            str(self.input_archive),
+        ]
         print(f"$ {' '.join(unpack_cmd)}")
         subprocess.run(unpack_cmd, check=True)
         input: Optional[str] = None
         if input_via_stdin:
             with open(Path(cwd).joinpath("input.template")) as f:
                 input = f.read()
-                return input.replace("NUMPROCS", str(CPU_COUNT))
+                return input.replace("NUMPROCS", self.env["NTHREADS"])
         return None
 
+    def _trace_run(
+        self, cmd: List[str], stdin: Optional[IO[Any]], cwd: str = "."
+    ) -> "resource._RUsage":
+        recording = record(
+            record_path=cwd,
+            log_path=cwd,
+            target=cmd,
+            working_directory=cwd,
+            extra_env=self.env,
+            stdin=stdin,
+        )
+        return recording.rusage
+
+    def _run(
+        self, cmd: List[str], stdin: Optional[IO[Any]], cwd: str = "."
+    ) -> "resource._RUsage":
+        proc = subprocess.Popen(cmd, env=self.env, cwd=cwd, stdin=stdin)
+        _, exit_code, rusage = os.wait4(proc.pid, 0)
+        assert exit_code == 0
+        return rusage
 
     def run(
-        self, interpreter: List[str] = [], simulate: bool = False, cwd: str = "."
-    ) -> None:
+        self, simulate: bool = False, cwd: str = ".", trace: bool = False
+    ) -> "resource._RUsage":
         input = None
-        cmd = interpreter
-        cmd += shlex.split(self.args)
+        args = shlex.split(self.args)
+        if args[0].endswith("x264"):
+            # https://github.com/cirosantilli/parsec-benchmark#host-x264
+            args[0] = "x264"
+            args.remove("--b-pyramid")
+        cmd = args
         input_via_stdin = False
         if cmd[-2] == "<":
             input_via_stdin = True
@@ -49,13 +114,21 @@ class Command:
             cmd.pop()
         input = self._unpack(cwd, input_via_stdin)
         print(f"$ cd {cwd}")
-        print(f"$ LD_LIBRARY_PATH={self.env['LD_LIBRARY_PATH']} {' '.join(cmd)}" + (" << EOF" if input_via_stdin else ""))
+        print(
+            f"$ LD_LIBRARY_PATH={self.env['LD_LIBRARY_PATH']} {' '.join(cmd)}"
+            + (" << EOF" if input_via_stdin else "")
+        )
         if input:
-            print(input)
+            print(input, end="")
             print("EOF")
         if simulate:
-            return
-        subprocess.run(cmd, env=self.env, check=True, cwd=cwd, input=input)
+            # dummy value
+            return getrusage(os.getpid())
+        with InputPipe(input) as read_file:
+            if trace:
+                return self._trace_run(cmd, cwd=Path(cwd), stdin=read_file)
+            else:
+                return self._run(cmd, cwd=cwd, stdin=read_file)
 
 
 @dataclass
@@ -72,9 +145,10 @@ class App:
 
     def source_env(self, path: Path) -> Dict[str, str]:
         wrapper = str(path.joinpath("inst", PLATFORM, "bin", "run.sh"))
+        cpu_count = CPU_COUNT
         script = f"""
-            export NTHREADS={CPU_COUNT}
-            export NUMPROCS={CPU_COUNT}
+            export NTHREADS={cpu_count}
+            export NUMPROCS={cpu_count}
             export INPUTSIZE=native
             export PARSECPLAT={PLATFORM}
             export PARSECDIR={ROOT}
@@ -139,7 +213,7 @@ def get_apps() -> List[App]:
     )
     assert proc.stdout is not None
     for line in proc.stdout.split("\n"):
-        match = re.match(r"\[PARSEC\] (splash2|splash2x|parsec|)\.([^ ]+)", line)
+        match = re.match(r"\[PARSEC\] (splash2x|parsec|)\.([^ ]+)", line)
         if not match:
             continue
         framework = match.group(1)
@@ -155,18 +229,55 @@ def main() -> None:
         with open("benchmarks.json") as f:
             benchmarks = json.load(f)
 
+    fields = [
+        "ru_idrss",
+        "ru_inblock",
+        "ru_isrss",
+        "ru_ixrss",
+        "ru_majflt",
+        "ru_maxrss",
+        "ru_minflt",
+        "ru_msgrcv",
+        "ru_msgsnd",
+        "ru_nivcsw",
+        "ru_nsignals",
+        "ru_nswap",
+        "ru_nvcsw",
+        "ru_oublock",
+        "ru_stime",
+        "ru_utime",
+    ]
     for app in get_apps():
         cmd = app.command()
-        if app.name in benchmarks:
+        if (
+            app.name in benchmarks
+            or app.framework == "splash2"
+            or app.name == "raytrace"
+        ):
             print(f"skip {app.name}")
             continue
 
         with tempfile.TemporaryDirectory() as temp:
-            cmd.run([], simulate=simulate, cwd=temp)
-        benchmarks[app.name] = {}
+            benchmarks[app.name] = []
+            for i in range(5):
+                for trace in [True, False]:
+                    usage = cmd.run(simulate=simulate, cwd=temp, trace=trace)
+                    usage_dict = {}
+                    for field in fields:
+                        usage_dict[field] = getattr(usage, field)
+                    usage_dict["name"] = app.name
+                    usage_dict["type"] = "trace" if trace else "normal"
+                    benchmarks[app.name].append(usage_dict)
         with open("benchmarks.json", "w") as f:
             json.dump(benchmarks, f)
-            #cmd.run("tracedump", simulate=simulate, cwd=temp)
+
+    with open("benchmarks.csv", "w", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=["name", "type"] + fields)
+        writer.writeheader()
+
+        for app, measurements in benchmarks.items():
+            for measurement in measurements:
+                writer.writerow(measurement)
 
 
 if __name__ == "__main__":
