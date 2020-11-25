@@ -13,10 +13,8 @@ from helpers import (
     create_settings,
     nix_build,
     spawn,
-    flamegraph_env,
     read_stats,
     write_stats,
-    scone_env,
     trace_with_pt,
 )
 from storage import Storage
@@ -107,11 +105,8 @@ class Benchmark:
         mnt: str,
         stats: Dict[str, List],
         extra_env: Dict[str, str] = {},
-        trace: bool = False
+        trace: bool = False,
     ) -> None:
-        env = dict(SGXLKL_CWD=mnt)
-        env.update(flamegraph_env(f"{os.getcwd()}/mysql-sim-{system}"))
-        env.update(extra_env)
         mysql = nix_build(attr)
 
         with spawn(
@@ -119,7 +114,7 @@ class Benchmark:
             "bin/mysqld",
             f"--datadir={mnt}/var/lib/mysql",
             "--socket=/tmp/mysql.sock",
-            extra_env=env,
+            cwd=mnt,
         ) as proc:
             if trace:
                 record = trace_with_pt(proc.pid, Path(mnt))

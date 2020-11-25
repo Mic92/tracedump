@@ -10,12 +10,10 @@ from helpers import (
     NOW,
     Settings,
     create_settings,
-    flamegraph_env,
     nix_build,
     read_stats,
     write_stats,
     spawn,
-    scone_env,
     trace_with_pt,
 )
 from storage import Storage
@@ -77,16 +75,11 @@ class Benchmark:
         system: str,
         mnt: str,
         stats: Dict[str, List],
-        extra_env: Dict[str, str] = {},
         trace: bool = False,
     ) -> None:
-        env = extra_env.copy()
-        env.update(flamegraph_env(f"{os.getcwd()}/nginx-{system}"))
-        env.update(dict(SGXLKL_CWD=mnt))
-
         nginx_server = nix_build(attr)
         with spawn(
-            nginx_server, "bin/nginx", "-c", f"{mnt}/nginx/nginx.conf", extra_env=env
+            nginx_server, "bin/nginx", "-c", f"{mnt}/nginx/nginx.conf", cwd=mnt
         ) as proc:
             if trace:
                 record = trace_with_pt(proc.pid, Path(mnt))

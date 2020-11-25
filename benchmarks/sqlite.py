@@ -14,8 +14,6 @@ from helpers import (
     nix_build,
     read_stats,
     write_stats,
-    scone_env,
-    flamegraph_env,
 )
 from tracedump.tracedumpd import record
 from storage import Storage
@@ -71,23 +69,16 @@ def benchmark_sqlite(
     extra_env: Dict[str, str] = {},
     trace: bool = False,
 ) -> None:
-    env = os.environ.copy()
-    del env["SGXLKL_TAP"]
-    env.update(dict(SGXLKL_CWD=directory))
-    env.update(extra_env)
-
-    env.update(flamegraph_env(f"{os.getcwd()}/sqlite-{system}"))
-    env.update(extra_env)
-
     sqlite = nix_build("sqlite")
-    stdout = subprocess.PIPE
     cmd = [str(sqlite)]
     print(f"[Benchmark]:{system}")
 
     if trace:
         output = trace_run(cmd, cwd=directory)
     else:
-        proc = subprocess.run(cmd, cwd=directory, stdout=subprocess.PIPE, check=True, text=True)
+        proc = subprocess.run(
+            cmd, cwd=directory, stdout=subprocess.PIPE, check=True, text=True
+        )
         assert proc.stdout
         output = proc.stdout
 

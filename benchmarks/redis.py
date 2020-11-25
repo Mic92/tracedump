@@ -13,8 +13,6 @@ from helpers import (
     read_stats,
     write_stats,
     NOW,
-    scone_env,
-    flamegraph_env,
     trace_with_pt,
 )
 from storage import Storage
@@ -34,7 +32,11 @@ def process_ycsb_out(ycsb_out: str, system: str, results: Dict[str, List]) -> No
 
 class Benchmark:
     def __init__(
-            self, settings: Settings, storage: Storage, record_count: int, operation_count: int
+        self,
+        settings: Settings,
+        storage: Storage,
+        record_count: int,
+        operation_count: int,
     ) -> None:
         self.settings = settings
         self.storage = storage
@@ -45,7 +47,7 @@ class Benchmark:
         self.operation_count = operation_count
 
     def run_ycsb(
-            self, proc: subprocess.Popen, system: str, stats: Dict[str, List],
+        self, proc: subprocess.Popen, system: str, stats: Dict[str, List],
     ) -> None:
         print(f"waiting for redis for {system} benchmark...", end="")
         while True:
@@ -111,7 +113,7 @@ class Benchmark:
         process_ycsb_out(run_proc.stdout, system, stats)
 
     def run(
-            self, system: str, db_dir: str, stats: Dict[str, List], trace: bool = False
+        self, system: str, db_dir: str, stats: Dict[str, List], trace: bool = False
     ) -> None:
         args = [
             "bin/redis-server",
@@ -133,8 +135,7 @@ class Benchmark:
             "no",
         ]
         redis_server = nix_build("redis-native")
-        env = flamegraph_env(f"{os.getcwd()}/redis-{system}")
-        with spawn(redis_server, *args, extra_env=env) as proc:
+        with spawn(redis_server, *args) as proc:
             if trace:
                 record = trace_with_pt(proc.pid, Path(db_dir))
             try:

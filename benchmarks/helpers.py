@@ -82,7 +82,9 @@ class Chdir(object):
 
 
 @contextmanager
-def spawn(*args: str, extra_env: Dict[str, str] = {}) -> Iterator[subprocess.Popen]:
+def spawn(
+    *args: str, extra_env: Dict[str, str] = {}, cwd: str = str(ROOT)
+) -> Iterator[subprocess.Popen]:
     env = os.environ.copy()
 
     env.update(extra_env)
@@ -91,7 +93,7 @@ def spawn(*args: str, extra_env: Dict[str, str] = {}) -> Iterator[subprocess.Pop
         env_string.append(f"{k}={v}")
 
     print(f"$ {' '.join(env_string)} {' '.join(args)}&")
-    proc = subprocess.Popen(args, cwd=ROOT, env=env)
+    proc = subprocess.Popen(args, cwd=cwd, env=env)
 
     try:
         yield proc
@@ -132,15 +134,6 @@ class Settings:
     dpdk_netmask: int
     dpdk_netmask6: int
     nvme_pci_id: str
-    nic_pci_id: str
-    spdk_hd_key: Optional[str]
-    native_nic_driver: str
-    native_nic_ifname: str
-    dpdk_nic_driver: str
-    tap_ifname: str
-    tap_bridge_cidr: str
-    tap_bridge_cidr6: str
-    remote_nic_ifname: str
 
     @property
     def cidr(self) -> str:
@@ -174,41 +167,6 @@ class Settings:
 
 def nix_build(attr: str) -> str:
     return run(["nix-build", "-A", attr, "--out-link", attr]).stdout.strip()
-
-
-def scone_env(mountpoint: Optional[str]) -> Dict[str, str]:
-    env = dict(SCONE_CONFIG=str(ROOT.joinpath("scone/sgx-musl.conf")), SCONE_HEAP="4G",)
-    if mountpoint:
-        keytag = Path(mountpoint).joinpath(".scone-keytag")
-        if keytag.exists():
-            with open(keytag) as f:
-                columns = f.read().rstrip("\n").split(" ")
-                env["SCONE_FSPF_KEY"] = columns[10]
-                env["SCONE_FSPF_TAG"] = columns[8]
-            env["SCONE_FSPF"] = str(Path(mountpoint).joinpath("fspf.pb"))
-    return env
-
-
-def flamegraph_env(name: str) -> Dict[str, str]:
-    profiling = os.environ.get("PROFILING", None)
-    if profiling is None:
-        return {}
-
-    if os.environ.get("SGXLKL_ENABLE_PERF_HW_COUNTER", None) is None:
-        flamegraph = f"{name}.svg"
-        perf_data = f"{name}.perf.data"
-        perf_script = f"{name}.perf.script"
-        info(f"{flamegraph} {perf_data} {perf_script}")
-        return dict(
-            PERF_FILENAME=perf_data,
-            SGXLKL_ENABLE_FLAMEGRAPH="1",
-            FLAMEGRAPH_FILENAME=flamegraph,
-            PERF_SCRIPT_FILENAME=perf_script,
-        )
-    else:
-        perf_data = f"{name}-hw-counters.perf.data"
-        info(perf_data)
-        return dict(PERF_FILENAME=perf_data)
 
 
 def create_settings() -> Settings:
@@ -246,16 +204,5 @@ def create_settings() -> Settings:
         local_dpdk_ip6=os.environ.get("SGXLKL_DPDK_IP6", "fdbf:9188:5fbd:a895::1"),
         dpdk_netmask=int(os.environ.get("DEFAULT_DPDK_IPV4_MASK", "24")),
         dpdk_netmask6=int(os.environ.get("DEFAULT_DPDK_IPV6_MASK", "64")),
-        nic_pci_id=nic_pci_id,
         nvme_pci_id=nvme_pci_id,
-        native_nic_driver=os.environ.get("NATIVE_NETWORK_DRIVER", "i40e"),
-        native_nic_ifname=os.environ.get("NATIVE_NETWORK_IFNAME", "eth2"),
-        dpdk_nic_driver=os.environ.get("DPDK_NETWORK_DRIVER", "igb_uio"),
-        spdk_hd_key=os.environ.get("SGXLKL_SPDK_HD_KEY", None),
-        tap_ifname=os.environ.get("SGXLKL_TAP", "sgxlkl_tap0"),
-        tap_bridge_cidr=os.environ.get("SGXLKL_BRIDGE_CIDR", "10.0.42.3/24"),
-        tap_bridge_cidr6=os.environ.get(
-            "SGXLKL_BRIDGE_CIDR6", "fdbf:9188:5fbd:a895::3/64"
-        ),
-        remote_nic_ifname=os.environ.get("REMOTE_NIC_IFNAME", "enp1s0f1"),
     )
