@@ -185,11 +185,6 @@ def create_settings() -> Settings:
         print("REMOTE_DPDK_IP6 not set", file=sys.stderr)
         sys.exit(1)
 
-    nic_pci_id = os.environ.get("NIC_PCI_ID")
-    if not nic_pci_id:
-        print("NIC_PCI_ID not set", file=sys.stderr)
-        sys.exit(1)
-
     nvme_pci_id = os.environ.get("NVME_PCI_ID")
     if not nvme_pci_id:
         print("NVME_PCI_ID not set", file=sys.stderr)

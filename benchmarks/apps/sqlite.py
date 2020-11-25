@@ -69,8 +69,8 @@ def benchmark_sqlite(
     extra_env: Dict[str, str] = {},
     trace: bool = False,
 ) -> None:
-    sqlite = nix_build("sqlite")
-    cmd = [str(sqlite)]
+    sqlite = nix_build("sqlite-speedtest")
+    cmd = [f"{sqlite}/bin/speedtest1"]
     print(f"[Benchmark]:{system}")
 
     if trace:

@@ -56,7 +56,7 @@ class Storage:
         dev = f"/dev/{spdk_device}"
 
         # TRIM for optimal performance
-        run(["sudo", "blkdiscard", dev])
+        run(["sudo", "blkdiscard", "-f", dev])
         run(
             [
                 "sudo",
