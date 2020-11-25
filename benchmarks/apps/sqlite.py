@@ -27,9 +27,9 @@ class StdoutPipe:
         self.thread: Optional[Thread] = None
 
     def _read_pipe(self) -> None:
-        if self.write_file:
-            self.output = self.write_file.read()
-            self.write_file.close()
+        if self.read_file:
+            self.output = self.read_file.read()
+            self.read_file.close()
 
     def __enter__(self) -> Optional[IO[str]]:
         read_fd, write_fd = os.pipe()
@@ -37,7 +37,7 @@ class StdoutPipe:
         self.write_file = os.fdopen(write_fd, mode="w")
         self.thread = Thread(target=self._read_pipe)
         self.thread.start()
-        return self.read_file
+        return self.write_file
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         if self.thread:
@@ -58,6 +58,7 @@ def trace_run(cmd: List[str], cwd: str = ".") -> str:
             working_directory=Path(cwd),
             stdout=stdout,
         )
+        stdout.close()
     assert pipe.output is not None
     return pipe.output
 
