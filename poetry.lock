@@ -222,7 +222,7 @@ unicorn = ">=1.0-rc3"
 
 [package.source]
 type = "url"
-url = "https://github.com/hase-project/pwntools/archive/59fbeb767ede61c8a54292daad3fa07cb996b805.zip"
+url = "https://github.com/hase-project/pwntools/archive/59fbeb767ede61c8a54292daad3fa07cb996b805.tar.gz"
 [[package]]
 name = "py"
 version = "1.9.0"
@@ -425,7 +425,7 @@ testing = ["coverage (>=4)", "coverage-enable-subprocess (>=1)", "flaky (>=3)", 
 [metadata]
 lock-version = "1.1"
 python-versions = ">= 3.8"
-content-hash = "a72b8790f783575960032d924323113889d7750ee3ffe97382090913255027d2"
+content-hash = "ed5094c6994775a4211f76fec75478b0e3732497a8d74c62bb0b1506335ab3e5"
 
 [metadata.files]
 appdirs = [
