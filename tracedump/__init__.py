@@ -34,7 +34,7 @@ class Trace():
         self.loader = loader
 
 
-def load_trace(report: Union[str, Path], archive_root: Union[str, Path]) -> List[Instruction]:
+def load_trace(report: Union[str, Path], archive_root: Union[str, Path]) -> Trace:
     report = Path(report)
     archive_root = Path(archive_root)
 

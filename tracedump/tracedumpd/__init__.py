@@ -36,7 +36,7 @@ class Recording:
         coredump: Optional[Coredump],
         trace: Trace,
         exit_status: int,
-        rusage: Optional[Tuple[Any, ...]] = None,
+        rusage: Optional["resource._RUsage"] = None,
         wall_time: Optional[float] = 0
     ) -> None:
         self.coredump = coredump

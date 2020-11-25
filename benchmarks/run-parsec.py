@@ -28,9 +28,10 @@ class InputPipe:
         self.read_file: Optional[IO[str]] = None
         self.write_file: Optional[IO[str]] = None
 
-    def _feed_pipe(self):
+    def _feed_pipe(self) -> None:
         if self.write_file:
-            self.write_file.write(self.input)
+            if self.input:
+                self.write_file.write(self.input)
             self.write_file.close()
 
     def __enter__(self) -> Optional[IO[str]]:
@@ -86,6 +87,11 @@ class Command:
             working_directory=Path(cwd),
             extra_env=self.env,
             stdin=stdin,
+        )
+        assert (
+            recording is not None
+            and recording.rusage is not None
+            and recording.wall_time is not None
         )
         return recording.rusage, recording.wall_time
 
@@ -275,7 +281,9 @@ def main() -> None:
             json.dump(benchmarks, f)
 
     with open("benchmarks.csv", "w", newline="") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=["name", "type", "wall_time"] + fields)
+        writer = csv.DictWriter(
+            csvfile, fieldnames=["name", "type", "wall_time"] + fields
+        )
         writer.writeheader()
 
         for app, measurements in benchmarks.items():
