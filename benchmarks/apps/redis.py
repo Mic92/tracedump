@@ -40,9 +40,9 @@ class Benchmark:
     ) -> None:
         self.settings = settings
         self.storage = storage
-        # self.remote_redis = settings.remote_command(nix_build("redis-cli"))
-        self.nc_command = settings.remote_command(nix_build("netcat-native"))
-        self.remote_ycsb = settings.remote_command(nix_build("ycsb-native"))
+        self.remote_redis = settings.remote_command(nix_build("redis-cli"))
+        self.nc_command = settings.remote_command(nix_build("netcat"))
+        self.remote_ycsb = settings.remote_command(nix_build("ycsb"))
         self.record_count = record_count
         self.operation_count = operation_count
 
@@ -134,7 +134,7 @@ class Benchmark:
             "--tls-auth-clients",
             "no",
         ]
-        redis_server = nix_build("redis-native")
+        redis_server = nix_build("redis")
         with spawn(redis_server, *args) as proc:
             if trace:
                 record = trace_with_pt(proc.pid, Path(db_dir))

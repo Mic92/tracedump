@@ -28,7 +28,7 @@ def sysbench_command(settings: Settings) -> RemoteCommand:
 
 @lru_cache(maxsize=1)
 def nc_command(settings: Settings) -> RemoteCommand:
-    path = nix_build("netcat-native")
+    path = nix_build("netcat")
     return settings.remote_command(path)
 
 
