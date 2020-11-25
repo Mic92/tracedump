@@ -34,8 +34,8 @@ class Benchmark:
     def __init__(self, settings: Settings, storage: Storage) -> None:
         self.settings = create_settings()
         self.storage = storage
-        self.remote_nc = settings.remote_command(nix_build("netcat-native"))
-        self.remote_wrk = settings.remote_command(nix_build("wrk-bench"))
+        self.remote_nc = settings.remote_command(nix_build("netcat"))
+        self.remote_wrk = settings.remote_command(nix_build("wrk"))
 
     def run_wrk(
         self, proc: subprocess.Popen, system: str, stats: Dict[str, List]
@@ -71,15 +71,14 @@ class Benchmark:
 
     def run(
         self,
-        attr: str,
         system: str,
         mnt: str,
         stats: Dict[str, List],
         trace: bool = False,
     ) -> None:
-        nginx_server = nix_build(attr)
+        nginx_server = nix_build("nginx")
         with spawn(
-            nginx_server, "bin/nginx", "-c", f"{mnt}/nginx/nginx.conf", cwd=mnt
+            f"{nginx_server}/bin/nginx", "-c", f"{mnt}/nginx/nginx.conf", cwd=mnt
         ) as proc:
             if trace:
                 record = trace_with_pt(proc.pid, Path(mnt))
@@ -92,12 +91,12 @@ class Benchmark:
 
 def benchmark_nginx_normal(benchmark: Benchmark, stats: Dict[str, List]) -> None:
     with benchmark.storage.setup() as mnt:
-        benchmark.run("nginx-native", "native", mnt, stats)
+        benchmark.run("native", mnt, stats)
 
 
 def benchmark_nginx_trace(benchmark: Benchmark, stats: Dict[str, List]) -> None:
     with benchmark.storage.setup() as mnt:
-        benchmark.run("nginx-native", "native", mnt, stats, trace=True)
+        benchmark.run("native", mnt, stats, trace=True)
 
 
 def main() -> None:
