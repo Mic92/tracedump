@@ -17,7 +17,7 @@ in poetry2nix.mkPoetryApplication {
     processor-trace
   ];
   overrides = [
-    (import ./pkgs/poetry-git-overlay.nix { inherit pkgs; })
     poetry2nix.defaultPoetryOverrides
+    (import ./pkgs/poetry-git-overlay.nix { inherit pkgs; })
   ];
 }
