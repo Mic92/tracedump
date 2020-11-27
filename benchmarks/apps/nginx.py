@@ -91,12 +91,12 @@ class Benchmark:
 
 def benchmark_nginx_normal(benchmark: Benchmark, stats: Dict[str, List]) -> None:
     with benchmark.storage.setup() as mnt:
-        benchmark.run("native", mnt, stats)
+        benchmark.run("normal", mnt, stats)
 
 
 def benchmark_nginx_trace(benchmark: Benchmark, stats: Dict[str, List]) -> None:
     with benchmark.storage.setup() as mnt:
-        benchmark.run("native", mnt, stats, trace=True)
+        benchmark.run("trace", mnt, stats, trace=True)
 
 
 def main() -> None:
