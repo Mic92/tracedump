@@ -100,7 +100,11 @@ def spawn(
     finally:
         print(f"terminate {args[0]}")
         proc.send_signal(signal.SIGINT)
-        proc.wait()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.send_signal(signal.SIGKILL)
+            proc.wait()
 
 
 @dataclass
