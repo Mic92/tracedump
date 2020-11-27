@@ -1,7 +1,7 @@
 { pkgs ? import ./nixpkgs.nix {} }:
 rec {
   inherit (pkgs) nginx mysql redis netcat sysbench wrk;
-  ycsb = pkgs.callPackage ./ycsb {};
+  ycsb = pkgs.callPackage ./ycsb.nix {};
   mysqlDatadir = "/var/lib/mysql";
   buildImage = pkgs.callPackage ./build-image.nix {};
   iotest-image = pkgs.callPackage ./iotest-image.nix {

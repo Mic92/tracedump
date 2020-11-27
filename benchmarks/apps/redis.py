@@ -40,7 +40,6 @@ class Benchmark:
     ) -> None:
         self.settings = settings
         self.storage = storage
-        self.remote_redis = settings.remote_command(nix_build("redis-cli"))
         self.nc_command = settings.remote_command(nix_build("netcat"))
         self.remote_ycsb = settings.remote_command(nix_build("ycsb"))
         self.record_count = record_count
@@ -69,20 +68,13 @@ class Benchmark:
                 "load",
                 "redis",
                 "-s",
-                "-P",
-                f"{self.remote_ycsb.nix_path}/share/ycsb/workloads/workloada",
-                "-p",
-                f"redis.host={self.settings.local_dpdk_ip}",
-                "-p",
-                "redis.port=6379",
-                "-p",
-                "redis.timeout=600000",
-                "-p",
-                f"recordcount={self.record_count}",
-                "-p",
-                f"operationcount={self.operation_count}",
-                "-p",
-                "redis.password=snakeoil",
+                "-P", f"{self.remote_ycsb.nix_path}/share/ycsb/workloads/workloada",
+                "-p", f"redis.host={self.settings.local_dpdk_ip}",
+                "-p", "redis.port=6379",
+                "-p", "redis.timeout=600000",
+                "-p", f"recordcount={self.record_count}",
+                "-p", f"operationcount={self.operation_count}",
+                "-p", "redis.password=snakeoil",
             ],
         )
 
@@ -92,22 +84,14 @@ class Benchmark:
                 "run",
                 "redis",
                 "-s",
-                "-P",
-                f"{self.remote_ycsb.nix_path}/share/ycsb/workloads/workloada",
-                "-threads",
-                "16",
-                "-p",
-                f"redis.host={self.settings.local_dpdk_ip}",
-                "-p",
-                "redis.port=6379",
-                "-p",
-                "redis.timeout=600000",
-                "-p",
-                f"recordcount={self.record_count}",
-                "-p",
-                f"operationcount={self.operation_count}",
-                "-p",
-                "redis.password=snakeoil",
+                "-P", f"{self.remote_ycsb.nix_path}/share/ycsb/workloads/workloada",
+                "-threads", "16",
+                "-p", f"redis.host={self.settings.local_dpdk_ip}",
+                "-p", "redis.port=6379",
+                "-p", "redis.timeout=600000",
+                "-p", f"recordcount={self.record_count}",
+                "-p", f"operationcount={self.operation_count}",
+                "-p", "redis.password=snakeoil",
             ],
         )
         process_ycsb_out(run_proc.stdout, system, stats)
@@ -116,26 +100,13 @@ class Benchmark:
         self, system: str, db_dir: str, stats: Dict[str, List], trace: bool = False
     ) -> None:
         args = [
-            "bin/redis-server",
             "--dir",
             db_dir,
-            "--tls-port",
-            "6379",
-            "--port",
-            "0",
-            "--tls-cert-file",
-            f"{db_dir}/server.cert",
-            "--tls-key-file",
-            f"{db_dir}/server.key",
-            "--tls-ca-cert-file",
-            f"{db_dir}/ca.crt",
             "--requirepass",
-            "snakeoil",
-            "--tls-auth-clients",
-            "no",
+            "snakeoil"
         ]
         redis_server = nix_build("redis")
-        with spawn(redis_server, *args) as proc:
+        with spawn(f"{redis_server}/bin/redis-server", *args) as proc:
             if trace:
                 record = trace_with_pt(proc.pid, Path(db_dir))
             try:
@@ -147,12 +118,12 @@ class Benchmark:
 
 def benchmark_redis_normal(benchmark: Benchmark, stats: Dict[str, List],) -> None:
     with benchmark.storage.setup() as mnt:
-        benchmark.run("native", mnt, stats)
+        benchmark.run("normal", mnt, stats)
 
 
 def benchmark_redis_trace(benchmark: Benchmark, stats: Dict[str, List],) -> None:
     with benchmark.storage.setup() as mnt:
-        benchmark.run("native", mnt, stats, trace=True)
+        benchmark.run("trace", mnt, stats, trace=True)
 
 
 def main() -> None:
@@ -165,7 +136,7 @@ def main() -> None:
     benchmark = Benchmark(settings, storage, record_count, op_count)
 
     benchmarks = {
-        "native": benchmark_redis_normal,
+        "normal": benchmark_redis_normal,
         "trace": benchmark_redis_trace,
     }
 
