@@ -12,7 +12,6 @@ from helpers import (
     create_settings,
     nix_build,
     read_stats,
-    write_stats,
     spawn,
     trace_with_pt,
 )
@@ -111,19 +110,13 @@ def main() -> None:
         "trace": benchmark_nginx_trace,
     }
 
-    system = set(stats["system"])
     for name, benchmark_func in benchmarks.items():
-        if name in system:
-            print(f"skip {name} benchmark")
-            continue
-        benchmark_func(benchmark, stats)
-        write_stats("nginx.json", stats)
+        while stats.runs[name] < 5:
+            benchmark_func(benchmark, stats.data)
+            stats.checkpoint(name)
 
-    csv = f"nginx-{NOW}.tsv"
-    print(csv)
-    throughput_df = pd.DataFrame(stats)
-    throughput_df.to_csv(csv, index=False, sep="\t")
-    throughput_df.to_csv("nginx-latest.tsv", index=False, sep="\t")
+    stats.to_tsv("nginx-latest.tsv")
+
 
 
 if __name__ == "__main__":

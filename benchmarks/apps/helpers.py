@@ -5,11 +5,12 @@ import sys
 import json
 import tempfile
 import threading
+import pandas as pd
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Text, DefaultDict, Any, IO, Callable
+from typing import Dict, Iterator, List, Optional, Text, DefaultDict, Any, IO, Callable, Tuple
 from collections import defaultdict
 from tracedump.tracedumpd import RecordPaths, RecordProcess  # type: ignore
 
@@ -49,24 +50,39 @@ def run(
     )
 
 
-def read_stats(path: str) -> DefaultDict[str, List]:
-    stats: DefaultDict[str, List] = defaultdict(list)
+class Stats:
+    def __init__(self, checkpoint_path: str) -> None:
+        self.data: DefaultDict[str, List] = defaultdict(list)
+        self.runs: DefaultDict[str, int] = defaultdict(int)
+        self.checkpoint_path = checkpoint_path
+
+    def checkpoint(self, system: str) -> None:
+        with open(self.checkpoint_path, "w") as f:
+            json.dump(self.data, f)
+        self.runs[system] += 1
+
+    def to_tsv(self, name: str) -> None:
+        throughput_df = pd.DataFrame(self.data)
+        print(name)
+        throughput_df.to_csv(name, index=False, sep="\t")
+
+
+def read_stats(path: str) -> Stats:
+    stats = Stats(path)
     if not os.path.exists(path):
         return stats
     with open(path) as f:
         raw_stats = json.load(f)
         for key, value in raw_stats.items():
-            stats[key] = value
+            stats.data[key] = value
+    for system in stats.data["system"]:
+        stats.runs[system] += 1
     return stats
 
 
 def trace_with_pt(pid: int, path: Path) -> RecordProcess:
     return RecordProcess(pid, RecordPaths(path, path, None))
 
-
-def write_stats(path: str, stats: DefaultDict[str, List]) -> None:
-    with open(path, "w") as f:
-        json.dump(stats, f)
 
 
 class Chdir(object):

@@ -13,7 +13,6 @@ from helpers import (
     create_settings,
     nix_build,
     read_stats,
-    write_stats,
 )
 from tracedump.tracedumpd import record
 from storage import Storage
@@ -58,6 +57,7 @@ def trace_run(cmd: List[str], cwd: str = ".") -> str:
             working_directory=Path(cwd),
             stdout=stdout,
         )
+        assert stdout is not None
         stdout.close()
     assert pipe.output is not None
     return pipe.output
@@ -123,19 +123,12 @@ def main() -> None:
         "normal": benchmark_sqlite_normal,
         "trace": benchmark_sqlite_trace,
     }
-    system = set(stats["system"])
     for name, benchmark in benchmarks.items():
-        if name in system:
-            print(f"skip {name} benchmark")
-            continue
-        benchmark(storage, stats)
-        write_stats("sqlite.json", stats)
+        while stats.runs[name] < 5:
+            benchmark(storage, stats.data)
+            stats.checkpoint(name)
 
-    csv = f"sqlite-speedtest-{NOW}.tsv"
-    print(csv)
-    df = pd.DataFrame(stats)
-    df.to_csv(csv, index=False, sep="\t")
-    df.to_csv("sqlite-speedtest-latest.tsv", index=False, sep="\t")
+    stats.to_tsv("sqlite-speedtest-latest.tsv")
 
 
 if __name__ == "__main__":

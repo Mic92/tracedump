@@ -11,7 +11,6 @@ from helpers import (
     nix_build,
     spawn,
     read_stats,
-    write_stats,
     NOW,
     trace_with_pt,
 )
@@ -140,19 +139,12 @@ def main() -> None:
         "trace": benchmark_redis_trace,
     }
 
-    system = set(stats["system"])
     for name, benchmark_func in benchmarks.items():
-        if name in system:
-            print(f"skip {name} benchmark")
-            continue
-        benchmark_func(benchmark, stats)
-        write_stats("redis.json", stats)
+        while stats.runs[name] < 5:
+            benchmark_func(benchmark, stats.data)
+            stats.checkpoint(name)
 
-    csv = f"redis-{NOW}.tsv"
-    print(csv)
-    throughput_df = pd.DataFrame(stats)
-    throughput_df.to_csv(csv, index=False, sep="\t")
-    throughput_df.to_csv("redis-latest.tsv", index=False, sep="\t")
+    stats.to_tsv("redis-latest.tsv")
 
 
 if __name__ == "__main__":
