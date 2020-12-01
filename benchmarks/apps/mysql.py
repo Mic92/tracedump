@@ -79,7 +79,8 @@ class Benchmark:
             "--mysql-db=root",
             "--mysql-user=root",
             "--mysql-password=root",
-            "--table-size=500000",
+            "--table-size=5000000",
+            "--time=60",
             f"{sysbench.nix_path}/share/sysbench/oltp_read_write.lua",
         ]
         while True:
