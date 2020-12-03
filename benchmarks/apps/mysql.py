@@ -6,6 +6,7 @@ from functools import lru_cache
 from typing import Dict, List
 from pathlib import Path
 from collections import defaultdict
+from enum import Enum, auto
 
 import pandas as pd
 from helpers import (
@@ -67,6 +68,12 @@ def process_sysbench(output: str, system: str, stats: Dict[str, List]) -> None:
     stats["system"].append(system)
 
 
+class Mode(Enum):
+    NORMAL = auto()
+    TRACE = auto()
+    PERF = auto()
+
+
 class Benchmark:
     def __init__(self, settings: Settings, storage: Storage) -> None:
         self.settings = settings
@@ -105,11 +112,17 @@ class Benchmark:
         mnt: str,
         stats: Dict[str, List],
         extra_env: Dict[str, str] = {},
-        trace: bool = False,
+        mode: Mode = Mode.NORMAL,
     ) -> None:
         mysql = nix_build("mysql")
 
-        command = [
+        command = []
+        if mode == Mode.PERF:
+            command = [
+                "perf", "record", "-e", "intel_pt/cyc=1/u", "--"
+            ]
+
+        command += [
             f"{mysql}/bin/mysqld",
             f"--datadir={mnt}/var/lib/mysql",
             "--socket=/tmp/mysql.sock",
@@ -119,27 +132,38 @@ class Benchmark:
             subprocess.run(["chown", "-R", "nobody", f"{mnt}/var/lib/mysql"])
 
         with spawn(*command, cwd=mnt) as proc:
-            if trace:
+            if mode == Mode.TRACE:
                 record = trace_with_pt(proc.pid, Path(mnt))
             try:
                 self.run_sysbench(system, stats)
             finally:
-                if trace:
+                if mode == Mode.TRACE:
                     record.result()
 
 
 def benchmark_normal(benchmark: Benchmark, stats: Dict[str, List]) -> None:
     with benchmark.storage.setup() as mnt:
         benchmark.run("normal", mnt, stats)
+        stats["trace_size"].append(0)
 
 
 def benchmark_trace(benchmark: Benchmark, stats: Dict[str, List]) -> None:
     with benchmark.storage.setup() as mnt:
-        benchmark.run("trace", mnt, stats, trace=True)
+        benchmark.run("trace", mnt, stats, mode=Mode.TRACE)
+        stats["trace_size"].append(0)
+
+
+def benchmark_perf(benchmark: Benchmark, stats: Dict[str, List]) -> None:
+    with benchmark.storage.setup() as mnt:
+        benchmark.run("perf", mnt, stats, mode=Mode.PERF)
+        perf_data = os.path.join(mnt, "perf.data")
+        stats["trace_size"].append(os.path.getsize(perf_data))
 
 
 def main() -> None:
-    stats = read_stats("mysql.json")
+    enable_perf = os.environ.get("ENABLE_PERF") is not None
+    suffix = "-perf" if enable_perf else ""
+    stats = read_stats(f"mysql{suffix}.json")
 
     settings = create_settings()
     storage = Storage(settings)
@@ -148,6 +172,7 @@ def main() -> None:
     benchmarks = {
         "normal": benchmark_normal,
         "trace": benchmark_trace,
+        "perf": benchmark_perf,
     }
 
     for name, benchmark_func in benchmarks.items():
@@ -155,7 +180,7 @@ def main() -> None:
             benchmark_func(benchmark, stats.data)
             stats.checkpoint(name)
 
-    stats.to_tsv("mysql-latest.tsv")
+    stats.to_tsv(f"mysql{suffix}-latest.tsv")
 
 
 if __name__ == "__main__":
