@@ -1,5 +1,5 @@
 # tracedump
-Systemservice to dump Intel processor trace + memory dump on-demand or a after a crash
+System service to dump Intel processor trace + memory after a crash.
 
 ## INSTALL
 
